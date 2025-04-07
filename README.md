@@ -22,8 +22,8 @@ A simple key-value database system with a Red-Black tree implementation and a se
 1. Clone the repository:
 
    ```
-   git clone https://github.com/yourusername/key-value-db.git
-   cd key-value-db
+   git clone https://github.com/tirth2004/persistant-rbtree
+   cd persistant-rbtree
    ```
 
 2. Create a build directory and navigate to it:
