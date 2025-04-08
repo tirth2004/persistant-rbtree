@@ -1,9 +1,8 @@
 #ifndef SERVER_HPP
 #define SERVER_HPP
 
-#include "rbtree.hpp"
+#include "PersistentTreap.hpp"
 #include <string>
-#include <functional>
 #include <thread>
 #include <atomic>
 #include <vector>
@@ -16,13 +15,8 @@ public:
     Server(const std::string& host = "127.0.0.1", int port = 8080);
     ~Server();
 
-    // Start the server
     void start();
-    
-    // Stop the server
     void stop();
-    
-    // Check if server is running
     bool isRunning() const;
 
 private:
@@ -32,28 +26,25 @@ private:
     std::thread serverThread;
     std::vector<std::thread> clientThreads;
     std::mutex clientsMutex;
-    
+
     // The key-value store
-    RedBlackTree<std::string, std::string> store;
-    
-    // Server loop
+    Treap<std::string, std::string> store;
+    // Remove this line as we'll use the global versions vector from PersistentTreap.hpp
+    // std::vector<Treap<std::string, std::string>> versions;
+
     void serverLoop();
-    
-    // Handle client connection
     void handleClient(int clientSocket);
-    
-    // Process command
     std::string processCommand(const std::string& command);
-    
-    // Parse command
+
     struct Command {
         std::string operation;
         std::string key;
         std::string value;
+        int version;
     };
     Command parseCommand(const std::string& commandStr);
 };
 
 } // namespace kvdb
 
-#endif // SERVER_HPP 
+#endif // SERVER_HPP

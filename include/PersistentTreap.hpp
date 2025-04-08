@@ -5,7 +5,7 @@
 #include <optional>
 
 using namespace std;
-mt19937 rng(chrono::steady_clock::now().time_since_epoch().count());
+inline mt19937 rng(chrono::steady_clock::now().time_since_epoch().count());
 
 template<typename T>
 std::ostream& operator<<(std::ostream& os, const std::optional<T>& opt) {
