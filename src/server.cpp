@@ -1,17 +1,15 @@
 #include "../include/server.hpp"
 #include <iostream>
 #include <sstream>
-#include <cstring>
 #include <sys/socket.h>
 #include <netinet/in.h>
-#include <unistd.h>
 #include <arpa/inet.h>
+#include <unistd.h>
 
 namespace kvdb {
 
 Server::Server(const std::string& host, int port)
-    : host(host), port(port), running(false) {
-}
+    : host(host), port(port), running(false) {}
 
 Server::~Server() {
     stop();
@@ -21,7 +19,6 @@ void Server::start() {
     if (running) {
         return;
     }
-    
     running = true;
     serverThread = std::thread(&Server::serverLoop, this);
 }
@@ -30,14 +27,10 @@ void Server::stop() {
     if (!running) {
         return;
     }
-    
     running = false;
-    
     if (serverThread.joinable()) {
         serverThread.join();
     }
-    
-    // Wait for all client threads to finish
     std::lock_guard<std::mutex> lock(clientsMutex);
     for (auto& thread : clientThreads) {
         if (thread.joinable()) {
@@ -115,70 +108,77 @@ void Server::serverLoop() {
 
 void Server::handleClient(int clientSocket) {
     char buffer[1024];
-    
     while (running) {
-        // Receive command
         int bytesRead = recv(clientSocket, buffer, sizeof(buffer) - 1, 0);
         if (bytesRead <= 0) {
             break;
         }
-        
         buffer[bytesRead] = '\0';
         std::string command(buffer);
-        
-        // Process command
         std::string response = processCommand(command);
-        
-        // Send response
         send(clientSocket, response.c_str(), response.length(), 0);
     }
-    
     close(clientSocket);
 }
 
 std::string Server::processCommand(const std::string& command) {
     Command cmd = parseCommand(command);
-    
     if (cmd.operation == "GET") {
-        auto value = store.get(cmd.key);
-        if (value) {
+        auto value = store.find(cmd.key);
+        if (value.has_value()) {
             return "OK " + *value + "\n";
         } else {
             return "ERROR Key not found\n";
         }
     } else if (cmd.operation == "SET") {
-        if (store.insert(cmd.key, cmd.value)) {
-            return "OK\n";
-        } else {
-            return "ERROR Failed to set key\n";
-        }
+        store.insert(cmd.key, cmd.value);
+        return "OK\n";
     } else if (cmd.operation == "DEL") {
-        if (store.remove(cmd.key)) {
-            return "OK\n";
+        store.remove(cmd.key);
+        return "OK\n";
+    } else if (cmd.operation == "EDIT") {
+        store.edit(cmd.key, cmd.value);
+        return "OK\n";
+    } else if (cmd.operation == "SNAPSHOT") {
+        snapshot<std::string, std::string>(store);
+        return "OK Snapshot created, version " + std::to_string(versions<std::string, std::string>.size() - 1) + "\n";
+    } else if (cmd.operation == "VGET") {
+        if (cmd.version >= 0 && cmd.version < versions<std::string, std::string>.size()) {
+            auto rolledBackTreap = rollback<std::string, std::string>(cmd.version);
+            auto value = rolledBackTreap.find(cmd.key);
+            if (value.has_value()) {
+                return "OK " + *value + "\n";
+            } else {
+                return "ERROR Key not found in version " + std::to_string(cmd.version) + "\n";
+            }
         } else {
-            return "ERROR Key not found\n";
+            return "ERROR Invalid version\n";
         }
     } else {
         return "ERROR Unknown command\n";
     }
 }
 
+
 Server::Command Server::parseCommand(const std::string& commandStr) {
     Command cmd;
     std::istringstream iss(commandStr);
     std::string token;
     
-    // Parse operation
     if (std::getline(iss, token, ' ')) {
         cmd.operation = token;
     }
     
-    // Parse key
+    if (cmd.operation == "VGET") {
+        if (std::getline(iss, token, ' ')) {
+            cmd.version = std::stoi(token);
+        }
+    }
+    
     if (std::getline(iss, token, ' ')) {
         cmd.key = token;
     }
     
-    // Parse value (if any)
     if (std::getline(iss, token)) {
         cmd.value = token;
     }
@@ -186,4 +186,4 @@ Server::Command Server::parseCommand(const std::string& commandStr) {
     return cmd;
 }
 
-} // namespace kvdb 
+} // namespace kvdb
