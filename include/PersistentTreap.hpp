@@ -2,6 +2,7 @@
 #define PERSISTENT_TREAP_HPP
 
 #include <bits/stdc++.h>
+#include <optional>
 
 using namespace std;
 mt19937 rng(chrono::steady_clock::now().time_since_epoch().count());
