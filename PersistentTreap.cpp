@@ -131,9 +131,9 @@ struct Treap{
         root = remove(root, key);
     }
 
-    void edit(Key prevKey, Key newKey, Value value){
-        remove(prevKey);
-        insert(newKey, value);
+    void edit(Key key, Value value){
+        remove(key);
+        insert(key, value);
     }
 
 };
