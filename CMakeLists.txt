@@ -9,7 +9,7 @@ include_directories(${PROJECT_SOURCE_DIR}/include)
 
 # Add source files for server
 set(SERVER_SOURCES
-    src/servercorrect.cpp
+    src/server.cpp
     main.cpp
 )
 
