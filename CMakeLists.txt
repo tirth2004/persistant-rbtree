@@ -11,6 +11,7 @@ include_directories(${PROJECT_SOURCE_DIR}/include)
 set(SERVER_SOURCES
     src/server.cpp
     main.cpp
+    src/watch_manager.cpp
 )
 
 # Create server executable
