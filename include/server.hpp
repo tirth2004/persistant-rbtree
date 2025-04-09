@@ -2,6 +2,7 @@
 #define SERVER_HPP
 
 #include "PersistentTreap.hpp"
+#include "watch_manager.hpp"
 #include <string>
 #include <thread>
 #include <atomic>
@@ -20,6 +21,7 @@ public:
     bool isRunning() const;
 
 private:
+    std::atomic<int> clientCounter{0};
     std::string host;
     int port;
     std::atomic<bool> running;
@@ -29,18 +31,20 @@ private:
 
     // The key-value store
     Treap<std::string, std::string> store;
-    // Remove this line as we'll use the global versions vector from PersistentTreap.hpp
-    // std::vector<Treap<std::string, std::string>> versions;
+    
+    // Watch manager for event notifications
+    WatchManager watchManager;
 
     void serverLoop();
     void handleClient(int clientSocket);
-    std::string processCommand(const std::string& command);
+    std::string processCommand(const std::string& command, int clientSocket);
 
     struct Command {
         std::string operation;
         std::string key;
         std::string value;
         int version;
+        int clientSocket;
     };
     Command parseCommand(const std::string& commandStr);
 };
