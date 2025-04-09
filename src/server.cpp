@@ -6,6 +6,11 @@
 #include <arpa/inet.h>
 #include <unistd.h>
 
+std::string trim(const std::string& str) {
+    size_t start = str.find_first_not_of(" \r\n\t");
+    size_t end = str.find_last_not_of(" \r\n\t");
+    return (start == std::string::npos) ? "" : str.substr(start, end - start + 1);
+}
 namespace kvdb {
 
 Server::Server(const std::string& host, int port)
@@ -166,7 +171,7 @@ Server::Command Server::parseCommand(const std::string& commandStr) {
     std::string token;
     
     if (std::getline(iss, token, ' ')) {
-        cmd.operation = token;
+        cmd.operation = trim(token);
     }
     
     if (cmd.operation == "VGET") {
@@ -176,11 +181,11 @@ Server::Command Server::parseCommand(const std::string& commandStr) {
     }
     
     if (std::getline(iss, token, ' ')) {
-        cmd.key = token;
+        cmd.key = trim(token);
     }
     
     if (std::getline(iss, token)) {
-        cmd.value = token;
+        cmd.value = trim(token);
     }
     
     return cmd;

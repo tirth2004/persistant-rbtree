@@ -47,7 +47,7 @@ int main(int argc, char* argv[]) {
     while (true) {
         std::cout << "> ";
         std::getline(std::cin, command);
-        
+        command.push_back('\n');
         if (command == "quit" || command == "exit") {
             break;
         }
