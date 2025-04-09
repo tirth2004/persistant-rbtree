@@ -40,6 +40,7 @@ bool Server::isRunning() const {
 }
 
 void Server::serverLoop() {
+    versions<std::string, std::string>.clear();
     int serverSocket = socket(AF_INET, SOCK_STREAM, 0);
     if (serverSocket < 0) {
         std::cerr << "Error creating socket" << std::endl;
@@ -111,34 +112,28 @@ void Server::serverLoop() {
                 }
             } else {
                 char buffer[1024];
-                while (true) {
-                    int bytesRead = recv(fd, buffer, sizeof(buffer) - 1, 0);
-                    if (bytesRead < 0) {
-                        if (errno != EAGAIN && errno != EWOULDBLOCK) {
-                            epoll_ctl(epollFd, EPOLL_CTL_DEL, fd, nullptr);
-                            close(fd);
-                            partialBuffer.erase(fd);
-                        }
-                        break;
-                    } else if (bytesRead == 0) {
-                        epoll_ctl(epollFd, EPOLL_CTL_DEL, fd, nullptr);
-                        close(fd);
-                        partialBuffer.erase(fd);
-                        break;
-                    } else {    
-                        buffer[bytesRead] = '\0';
-                        partialBuffer[fd] += buffer;
+while (true) {
+    int bytesRead = recv(fd, buffer, sizeof(buffer) - 1, 0);
+    if (bytesRead < 0) {
+        if (errno != EAGAIN && errno != EWOULDBLOCK) {
+            epoll_ctl(epollFd, EPOLL_CTL_DEL, fd, nullptr);
+            close(fd);
+            partialBuffer.erase(fd);
+        }
+        break;
+    } else if (bytesRead == 0) {
+        epoll_ctl(epollFd, EPOLL_CTL_DEL, fd, nullptr);
+        close(fd);
+        partialBuffer.erase(fd);
+        break;
+    } else {
+        buffer[bytesRead] = '\0';
+        std::string command(buffer); // take the whole chunk
+        std::string response = processCommand(command);
+        send(fd, response.c_str(), response.length(), 0);
+    }
+}
 
-                        size_t pos;
-                        while ((pos = partialBuffer[fd].find('\n')) != std::string::npos) {
-                            std::string line = partialBuffer[fd].substr(0, pos);
-                            partialBuffer[fd].erase(0, pos + 1);
-
-                            std::string response = processCommand(line);
-                            send(fd, response.c_str(), response.length(), 0);
-                        }
-                    }
-                }
             }
         }
     }
@@ -181,7 +176,6 @@ Server::Command Server::parseCommand(const std::string& commandStr) {
     Command cmd;
     std::istringstream iss(commandStr);
     std::string token;
-
     if (std::getline(iss, token, ' ')) cmd.operation = token;
     if (cmd.operation == "VGET") {
         if (std::getline(iss, token, ' ')) cmd.version = std::stoi(token);
