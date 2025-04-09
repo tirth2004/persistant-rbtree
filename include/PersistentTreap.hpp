@@ -1,12 +1,16 @@
 #ifndef PERSISTENT_TREAP_HPP
 #define PERSISTENT_TREAP_HPP
 
-#include <bits/stdc++.h>
+#include <iostream>
 #include <optional>
+#include <utility>
+#include <random>
+#include <chrono>
+#include "Values.hpp"
+#include "Nodes.hpp"
 
 using namespace std;
-inline mt19937 rng(chrono::steady_clock::now().time_since_epoch().count());
-
+std :: mt19937 static rng(std :: chrono::steady_clock::now().time_since_epoch().count());
 template<typename T>
 std::ostream& operator<<(std::ostream& os, const std::optional<T>& opt) {
     if (opt.has_value()) {
@@ -18,85 +22,88 @@ std::ostream& operator<<(std::ostream& os, const std::optional<T>& opt) {
 }
 
 template<typename Key, typename Value>
+Nodes<Key, Value> nodes;
+
+template<typename Value>
+Values<Value> values;
+
+template<typename Key, typename Value>
 struct Node{
     Key key;
-    Value value;
+    int vID;
     int y;
-    pair<Node* , Node*>p;
-    Node(Key k, Value v) : key(k), value(v), y(rng()), p({0, 0}) {};
-    Node(Node* u) : key(u->key), value(u->value), y(u->y), p(u->p) {};  
-
-    ~Node();
+    std :: pair<int, int>p;
+    Node() : y(rng()), p({0, 0}) {}
+    Node(Key k, Value v) : key(k), y(rng()), p({0, 0}) { vID = values<Value>.add(v); }
+    Node(int id) : key(nodes<Key, Value>[id].key), vID(nodes<Key, Value>[id].vID), y(nodes<Key, Value>[id].y), p(nodes<Key, Value>[id].p) {}
 };
-template<typename Key, typename Value>
-struct Treap;
 
 template<typename Key, typename Value>
-Node<Key, Value>* merge(Node<Key, Value>* T1, Node<Key, Value>* T2){
+int merge(int T1, int T2){
     if(!T2) return T1;
     if(!T1) return T2;
-    if(T1->y > T2->y)
+    if(nodes<Key, Value>[T1].y > nodes<Key, Value>[T2].y)
     {
-        Node<Key, Value>* newNode = new Node<Key, Value>(T1);
-        newNode->p.second = merge(newNode->p.second, T2);
-        return newNode;
+        int id = nodes<Key, Value>.add(T1);
+        nodes<Key, Value>[id].p.second = merge<Key, Value>(nodes<Key, Value>[id].p.second, T2);
+        return id;
     }
     else
     {
-        Node<Key, Value>* newNode = new Node<Key, Value>(T2);
-        newNode->p.first = merge(T1, newNode->p.first);
-        return newNode;
+        int id = nodes<Key, Value>.add(T2);
+        nodes<Key, Value>[id].p.first = merge<Key, Value>(T1, nodes<Key, Value>[id].p.first);
+        return id;
     }
 }
+
 template<typename Key, typename Value>
-pair<Node<Key, Value>*, Node<Key, Value>* > split(Node<Key, Value>* T, Key k){
+pair<int, int> split(int T, Key k){
     if(!T) return{0, 0};
-    Node<Key, Value>* newNode = new Node<Key, Value>(T);
-    if(T->key > k){
-        auto res = split(newNode->p.first, k);
-        newNode->p.first = res.second;
-        return {res.first, newNode};
+    int id = nodes<Key, Value>.add(T);
+    if(nodes<Key, Value>[T].key > k){
+        auto res = split<Key, Value>(nodes<Key, Value>[id].p.first, k);
+        nodes<Key, Value>[id].p.first = res.second;
+        return {res.first, id};
     }
     else
     {
-        auto res = split(newNode->p.second, k);
-        newNode->p.second = res.first;
-        return {newNode, res.second};
+        auto res = split<Key, Value>(nodes<Key, Value>[id].p.second, k);
+        nodes<Key, Value>[id].p.second = res.first;
+        return {id, res.second};
     }
 }
 
 template<typename Key, typename Value>
 struct Treap{
-    Node<Key, Value>* root;
+    int root;
     Treap() : root(0) {}
-    Treap(Treap<Key, Value>* T) : root(T->root) {}
 
-    optional<Value> find(Node<Key, Value>* T, Key key){
+    optional<Value> find(int T, const Key &key){
         if(!T)  return nullopt;
-        if(T->key == key)
-            return T->value;
-        if(T->key > key){
-            return find(T->p.first, key);
+        if(nodes<Key, Value>[T].key == key)
+            return values<Value>[nodes<Key, Value>[T].vID];
+        if(nodes<Key, Value>[T].key > key){
+            return find(nodes<Key, Value>[T].p.first, key);
         }
-        return find(T->p.second, key);
+        return find(nodes<Key, Value>[T].p.second, key);
     }
 
-    optional<Key> find_lessThan(Node<Key, Value>* T, Key key){
+    optional<Key> find_lessThan(int T, const Key &key){
         if(!T)  return nullopt;
-        if(T->key < key){
-            optional<Value>val = find_lessThan(T->p.second, key);
+        if(nodes<Key, Value>[T].key < key){
+            optional<Value>val = find_lessThan(nodes<Key, Value>[T].p.second, key);
             if(val.has_value()){
                 return val;
             }
-            return T->key;
+            return nodes<Key, Value>[T].key;
         }
         else
         {
-            return find_lessThan(T->p.first, key);
+            return find_lessThan(nodes<Key, Value>[T].p.first, key);
         }
     }
 
-    Node<Key, Value>* insert(Node<Key, Value>* T, Key key, Value value){
+    int insert(int T, Key key, Value value){
         optional<Value> v;
         if((v = find(T, key)).has_value()){
             if(v == value)
@@ -104,18 +111,17 @@ struct Treap{
             cerr << "Value already present !\n";
             return T;
         }
-        auto Split = split(T, key);
-        Node<Key, Value>* newNode = new Node<Key, Value>(key, value);
-        return merge(Split.first, merge(newNode, Split.second)); 
+        auto Split = split<Key, Value>(T, key);        int id = nodes<Key, Value>.add(key, value);
+        return merge<Key, Value>(Split.first, merge<Key, Value>(id, Split.second)); 
     }
 
-    Node<Key, Value>* remove(Node<Key, Value>* T, Key key){
+    int remove(int T, Key key){
         if(!find(T, key).has_value())   return T;
         optional<Key> lt = find_lessThan(T, key);
-        auto sp1 = split(T, key);
+        auto sp1 = split<Key, Value>(T, key);
         if(lt.has_value()){
-            auto sp2 = split(sp1.first, *lt);
-            return merge(sp2.first, sp1.second);
+            auto sp2 = split<Key, Value>(sp1.first, *lt);
+            return merge<Key, Value>(sp2.first, sp1.second);
         }
         else
         {
@@ -136,8 +142,7 @@ struct Treap{
     }
 
     void edit(Key key, Value value){
-        remove(key);
-        insert(key, value);
+        root = insert(remove(root, key), key, value);
     }
 
 };
@@ -153,10 +158,10 @@ template<typename Key, typename Value>
 Treap<Key, Value> rollback(int i){
     if(i >= versions<Key, Value>.size())
     {
-        return NULL;
+        cerr << "There are not so many versions\n";
+        return Treap<Key, Value>();
     }
     return versions<Key, Value>[i];
 }
 
 #endif // PERSISTENT_TREAP_HPP
-
