@@ -129,7 +129,7 @@ while (true) {
     } else {
         buffer[bytesRead] = '\0';
         std::string command(buffer); // take the whole chunk
-        std::string response = processCommand(command);
+        std::string response = processCommand(command, clientCounter);
         send(fd, response.c_str(), response.length(), 0);
     }
 }
@@ -142,7 +142,7 @@ while (true) {
     close(epollFd);
 }
 
-std::string Server::processCommand(const std::string& command) {
+std::string Server::processCommand(const std::string& command ,int clientSocket) {
     Command cmd = parseCommand(command);
     if (cmd.operation == "GET") {
         auto value = store.find(cmd.key);
