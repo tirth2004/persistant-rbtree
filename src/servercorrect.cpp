@@ -15,10 +15,13 @@
 namespace kvdb {
 
 Server::Server(const std::string& host, int port)
-    : host(host), port(port), running(false) {}
+    : host(host), port(port), running(false) {
+    watchManager.start();
+    }
 
 Server::~Server() {
     stop();
+    watchManager.stop();
 }
 
 void Server::start() {
@@ -109,31 +112,34 @@ void Server::serverLoop() {
                     clientEvent.events = EPOLLIN | EPOLLET;
                     clientEvent.data.fd = clientSocket;
                     epoll_ctl(epollFd, EPOLL_CTL_ADD, clientSocket, &clientEvent);
+
+                    // Log the thread ID for the new client connection
+                    std::cerr << "New client connection accepted. Thread ID: " 
+                              << std::this_thread::get_id() << std::endl;
                 }
             } else {
                 char buffer[1024];
-while (true) {
-    int bytesRead = recv(fd, buffer, sizeof(buffer) - 1, 0);
-    if (bytesRead < 0) {
-        if (errno != EAGAIN && errno != EWOULDBLOCK) {
-            epoll_ctl(epollFd, EPOLL_CTL_DEL, fd, nullptr);
-            close(fd);
-            partialBuffer.erase(fd);
-        }
-        break;
-    } else if (bytesRead == 0) {
-        epoll_ctl(epollFd, EPOLL_CTL_DEL, fd, nullptr);
-        close(fd);
-        partialBuffer.erase(fd);
-        break;
-    } else {
-        buffer[bytesRead] = '\0';
-        std::string command(buffer); // take the whole chunk
-        std::string response = processCommand(command, clientCounter);
-        send(fd, response.c_str(), response.length(), 0);
-    }
-}
-
+                while (true) {
+                    int bytesRead = recv(fd, buffer, sizeof(buffer) - 1, 0);
+                    if (bytesRead < 0) {
+                        if (errno != EAGAIN && errno != EWOULDBLOCK) {
+                            epoll_ctl(epollFd, EPOLL_CTL_DEL, fd, nullptr);
+                            close(fd);
+                            partialBuffer.erase(fd);
+                        }
+                        break;
+                    } else if (bytesRead == 0) {
+                        epoll_ctl(epollFd, EPOLL_CTL_DEL, fd, nullptr);
+                        close(fd);
+                        partialBuffer.erase(fd);
+                        break;
+                    } else {
+                        buffer[bytesRead] = '\0';
+                        std::string command(buffer); // take the whole chunk
+                        std::string response = processCommand(command, fd);
+                        send(fd, response.c_str(), response.length(), 0);
+                    }
+                }
             }
         }
     }
@@ -142,47 +148,148 @@ while (true) {
     close(epollFd);
 }
 
-std::string Server::processCommand(const std::string& command ,int clientSocket) {
+
+std::string Server::processCommand(const std::string& command, int clientSocket) {
     Command cmd = parseCommand(command);
-    if (cmd.operation == "GET") {
+    cmd.clientSocket = clientSocket;
+    
+    if (cmd.operation == "WATCH") {
+        // Parse watch operation
+        WatchOperation op;
+        if (cmd.value == "SET") {
+            op = WatchOperation::SET;
+        } else if (cmd.value == "DEL") {
+            op = WatchOperation::DEL;
+        } else if (cmd.value == "EDIT") {
+            op = WatchOperation::EDIT;
+        } else if (cmd.value == "ALL") {
+            op = WatchOperation::ALL;
+        } else {
+            return "ERROR Invalid watch operation. Use SET, DEL, EDIT, or ALL\n";
+        }
+        
+        // Add the watch - O(1) operation
+        watchManager.addWatch(clientSocket, cmd.key, op);
+        return "OK Watching " + cmd.key + " for " + cmd.value + " operations\n";
+    } 
+    else if (cmd.operation == "UNWATCH") {
+        if (cmd.key.empty()) {
+            // Remove all watches for this client - O(n) operation
+            watchManager.removeAllWatches(clientSocket);
+            return "OK Removed all watches\n";
+        } else {
+            // Parse watch operation
+            WatchOperation op;
+            if (cmd.value == "SET") {
+                op = WatchOperation::SET;
+            } else if (cmd.value == "DEL") {
+                op = WatchOperation::DEL;
+            } else if (cmd.value == "EDIT") {
+                op = WatchOperation::EDIT;
+            } else if (cmd.value == "ALL") {
+                op = WatchOperation::ALL;
+            } else {
+                return "ERROR Invalid watch operation\n";
+            }
+            
+            // Remove specific watch - O(1) operation
+            watchManager.removeWatch(clientSocket, cmd.key, op);
+            return "OK Removed watch for " + cmd.key + "\n";
+        }
+    }
+    else if (cmd.operation == "GET") {
         auto value = store.find(cmd.key);
-        return value.has_value() ? "OK " + *value + "\n" : "ERROR Key not found\n";
-    } else if (cmd.operation == "SET") {
+        if (value.has_value()) {
+            return "OK " + *value + "\n";
+        } else {
+            return "ERROR Key not found\n";
+        }
+    } 
+    else if (cmd.operation == "SET") {
+        auto existingValue = store.find(cmd.key);
+        if (existingValue.has_value()) {
+            return "ERROR Key already exists\n";  // Add this error check
+        }
         store.insert(cmd.key, cmd.value);
+        // Notify watchers asynchronously - O(1) lookup, O(n) queue
+        watchManager.notifyEvent(cmd.key, WatchOperation::SET, cmd.value);
         return "OK\n";
-    } else if (cmd.operation == "DEL") {
-        store.remove(cmd.key);
-        return "OK\n";
-    } else if (cmd.operation == "EDIT") {
-        store.edit(cmd.key, cmd.value);
-        return "OK\n";
-    } else if (cmd.operation == "SNAPSHOT") {
+    }
+    
+    else if (cmd.operation == "DEL") {
+        auto existingValue = store.find(cmd.key);
+        if (existingValue.has_value()) {
+            store.remove(cmd.key);
+            // Notify watchers asynchronously - O(1) lookup, O(n) queue
+            watchManager.notifyEvent(cmd.key, WatchOperation::DEL, "");
+            return "OK\n";
+        } else {
+            return "ERROR Key not found\n";  // Add this error message
+        }
+    }
+    else if (cmd.operation == "EDIT") {
+        auto existingValue = store.find(cmd.key);
+        if (existingValue.has_value()) {
+            store.edit(cmd.key, cmd.value);
+            // Notify watchers asynchronously - O(1) lookup, O(n) queue
+            watchManager.notifyEvent(cmd.key, WatchOperation::EDIT, cmd.value);
+            return "OK\n";
+        } else {
+            return "ERROR Key not found\n";  // Add this error message
+        }
+    }
+    
+    else if (cmd.operation == "SNAPSHOT") {
         snapshot<std::string, std::string>(store);
-        return "OK Snapshot created, version " + std::to_string(versions<std::string, std::string>.size() - 1) + "\n";
-    } else if (cmd.operation == "VGET") {
+        return "OK Snapshot created, version " + 
+               std::to_string(versions<std::string, std::string>.size() - 1) + "\n";
+    }
+    else if (cmd.operation == "VGET") {
         if (cmd.version >= 0 && cmd.version < versions<std::string, std::string>.size()) {
             auto rolledBackTreap = rollback<std::string, std::string>(cmd.version);
             auto value = rolledBackTreap.find(cmd.key);
-            return value.has_value() ? "OK " + *value + "\n" : "ERROR Key not found in version " + std::to_string(cmd.version) + "\n";
+            if (value.has_value()) {
+                return "OK " + *value + "\n";
+            } else {
+                return "ERROR Key not found in version " + std::to_string(cmd.version) + "\n";
+            }
         } else {
             return "ERROR Invalid version\n";
         }
-    } else {
+    }
+    else {
         return "ERROR Unknown command\n";
     }
 }
 
 Server::Command Server::parseCommand(const std::string& commandStr) {
     Command cmd;
+    cmd.version = -1;
+    cmd.clientSocket = -1;
+    
     std::istringstream iss(commandStr);
     std::string token;
-    if (std::getline(iss, token, ' ')) cmd.operation = token;
-    if (cmd.operation == "VGET") {
-        if (std::getline(iss, token, ' ')) cmd.version = std::stoi(token);
+    
+    if (std::getline(iss, token, ' ')) {
+        cmd.operation = (token);
     }
-    if (std::getline(iss, token, ' ')) cmd.key = token;
-    if (std::getline(iss, token)) cmd.value = token;
-
+    
+    if (cmd.operation == "VGET") {
+        if (std::getline(iss, token, ' ')) {
+            cmd.version = std::stoi(token);
+        }
+        if (std::getline(iss, token, ' ')) {
+            cmd.key = token;
+        }
+    } else {
+        if (std::getline(iss, token, ' ')) {
+            cmd.key = token;
+        }
+        if (std::getline(iss, token)) {
+            cmd.value = token;
+        }
+    }
+    
     return cmd;
 }
 
