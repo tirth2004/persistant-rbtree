@@ -45,3 +45,9 @@ target_link_libraries(treap_tests gtest gtest_main)
 
 include(GoogleTest)
 gtest_discover_tests(treap_tests)
+
+add_executable(server_tests test/server_tests.cpp)
+target_link_libraries(server_tests gtest gtest_main)
+
+include(GoogleTest)
+gtest_discover_tests(server_tests)
