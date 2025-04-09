@@ -1,0 +1,51 @@
+version: "3"
+services:
+  server:
+    build: .
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./src:/app/src
+      - ./include:/app/include
+      - ./CMakeLists.txt:/app/CMakeLists.txt
+    command: ./kvdb 0.0.0.0 8080
+    networks:
+      - kvdb_network
+
+  client:
+    build: .
+    tty: true
+    stdin_open: true
+    volumes:
+      - ./src:/app/src
+      - ./include:/app/include
+      - ./CMakeLists.txt:/app/CMakeLists.txt
+    command: ./kvdb_client 172.19.0.2 8080
+    depends_on:
+      - server
+    networks:
+      - kvdb_network
+
+  server_tests:
+    build: .
+    volumes:
+      - ./src:/app/src
+      - ./include:/app/include
+      - ./CMakeLists.txt:/app/CMakeLists.txt
+    command: ./server_tests
+    networks:
+      - kvdb_network
+
+  treap_tests:
+    build: .
+    volumes:
+      - ./src:/app/src
+      - ./include:/app/include
+      - ./CMakeLists.txt:/app/CMakeLists.txt
+    command: ./treap_tests
+    networks:
+      - kvdb_network
+
+networks:
+  kvdb_network:
+    driver: bridge
