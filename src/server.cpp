@@ -46,7 +46,7 @@ bool Server::isRunning() const {
 
 void Server::serverLoop() {
     // Create socket
-    int serverSocket = socket(AF_INET, SOCK_STREAM, 0);
+    int serverSocket = ::socket(AF_INET, SOCK_STREAM, 0);
     if (serverSocket < 0) {
         std::cerr << "Error creating socket" << std::endl;
         running = false;
@@ -55,7 +55,7 @@ void Server::serverLoop() {
     
     // Set socket options
     int opt = 1;
-    if (setsockopt(serverSocket, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) < 0) {
+    if (::setsockopt(serverSocket, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) < 0) {
         std::cerr << "Error setting socket options" << std::endl;
         close(serverSocket);
         running = false;
@@ -68,7 +68,7 @@ void Server::serverLoop() {
     serverAddr.sin_addr.s_addr = inet_addr(host.c_str());
     serverAddr.sin_port = htons(port);
     
-    if (bind(serverSocket, (struct sockaddr*)&serverAddr, sizeof(serverAddr)) < 0) {
+    if (::bind(serverSocket, (struct sockaddr*)&serverAddr, sizeof(serverAddr)) < 0) {
         std::cerr << "Error binding socket" << std::endl;
         close(serverSocket);
         running = false;
@@ -76,7 +76,7 @@ void Server::serverLoop() {
     }
     
     // Listen for connections
-    if (listen(serverSocket, 5) < 0) {
+    if (::listen(serverSocket, 5) < 0) {
         std::cerr << "Error listening on socket" << std::endl;
         close(serverSocket);
         running = false;
@@ -90,7 +90,7 @@ void Server::serverLoop() {
         struct sockaddr_in clientAddr;
         socklen_t clientLen = sizeof(clientAddr);
         
-        int clientSocket = accept(serverSocket, (struct sockaddr*)&clientAddr, &clientLen);
+        int clientSocket = ::accept(serverSocket, (struct sockaddr*)&clientAddr, &clientLen);
         if (clientSocket < 0) {
             if (running) {
                 std::cerr << "Error accepting connection" << std::endl;
