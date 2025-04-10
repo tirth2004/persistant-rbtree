@@ -6,6 +6,10 @@
 #include <arpa/inet.h>
 #include <unistd.h>
 
+/*This is a redacted version of the server code. 
+It was created in older version- we now switched to
+`server_multi_thread.cpp`*/
+
 // std::string trim(const std::string& str) {
 //     size_t start = str.find_first_not_of(" \r\n\t");
 //     size_t end = str.find_last_not_of(" \r\n\t");
