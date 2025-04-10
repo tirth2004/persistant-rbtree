@@ -284,6 +284,11 @@ std::string Server::processCommand(const std::string& command, int clientSocket)
         is.close();
         return "DATABASE Loaded\n";
     }
+    else if(cmd.operation == "CHANGE")
+    {
+        store = rollback<string, string>(cmd.version);
+        return "CHANGE to version " + to_string(cmd.version) + "\n";
+    }
     else {
         return "ERROR Unknown command\n";
     }
@@ -314,6 +319,13 @@ Server::Command Server::parseCommand(const std::string& commandStr) {
         if(std :: getline(iss, token, ' '))
         {
             cmd.value = token;
+        }
+    }
+    else if (cmd.operation == "CHANGE")
+    {
+        if(std :: getline(iss, token, ' '))
+        {
+            cmd.version = stoi(token);
         }
     }
     else {
