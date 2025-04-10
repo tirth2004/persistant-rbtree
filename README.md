@@ -8,7 +8,7 @@ A simple key-value database system with a Persistent Treap implementation and a 
 - Version control with snapshots and rollback capability
 - Server-client architecture for remote access
 - Basic operations: GET, SET, DEL, EDIT
-- Advanced operations: SNAPSHOT, VGET (versioned get)
+- Advanced operations: SNAPSHOT, VGET (versioned get), CHANGE
 - Watch/Notify system for real-time updates
 - Thread-safe server implementation with epoll-based multiplexing
 
