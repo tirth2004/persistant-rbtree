@@ -53,7 +53,6 @@ bool Server::isRunning() const {
 }
 
 void Server::serverLoop() {
-    // Create socket
     int serverSocket = socket(AF_INET, SOCK_STREAM, 0);
     if (serverSocket < 0) {
         std::cerr << "Error creating socket" << std::endl;
@@ -61,7 +60,6 @@ void Server::serverLoop() {
         return;
     }
 
-    // Set socket options
     int opt = 1;
     if (setsockopt(serverSocket, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) < 0) {
         std::cerr << "Error setting socket options" << std::endl;
@@ -70,7 +68,6 @@ void Server::serverLoop() {
         return;
     }
 
-    // Bind socket
     struct sockaddr_in serverAddr;
     serverAddr.sin_family = AF_INET;
     serverAddr.sin_addr.s_addr = inet_addr(host.c_str());
@@ -82,7 +79,6 @@ void Server::serverLoop() {
         return;
     }
 
-    // Listen for connections
     if (listen(serverSocket, 5) < 0) {
         std::cerr << "Error listening on socket" << std::endl;
         close(serverSocket);
@@ -92,7 +88,6 @@ void Server::serverLoop() {
 
     std::cout << "Server listening on " << host << ":" << port << std::endl;
     
-    // Accept connections
     while (running) {
         struct sockaddr_in clientAddr;
         socklen_t clientLen = sizeof(clientAddr);
@@ -104,7 +99,6 @@ void Server::serverLoop() {
             continue;
         }
 
-        // Create a new thread to handle the client
         std::lock_guard<std::mutex> lock(clientsMutex);
         clientThreads.emplace_back(&Server::handleClient, this, clientSocket);
     }
@@ -121,7 +115,6 @@ void Server::handleClient(int clientSocket) {
     // std::cout << "Client " << clientNumber << " connected" << std::endl;
     char buffer[1024];
     while (running) {
-        // Receive command
         int bytesRead = recv(clientSocket, buffer, sizeof(buffer) - 1, 0);
         if (bytesRead <= 0) {
             break;
@@ -129,15 +122,12 @@ void Server::handleClient(int clientSocket) {
         buffer[bytesRead] = '\0';
         std::string command(buffer);
         
-        // Process command
         std::string response = processCommand(command, clientSocket);
         
-        // Send response
         send(clientSocket, response.c_str(), response.length(), 0);
     }
     
     // std::cout << "Client " << clientNumber << " disconnected" << std::endl;
-    // Remove all watches for this client when they disconnect
     watchManager.removeAllWatches(clientSocket);
     close(clientSocket);
 }
@@ -147,7 +137,6 @@ std::string Server::processCommand(const std::string& command, int clientSocket)
     cmd.clientSocket = clientSocket;
     
     if (cmd.operation == "WATCH") {
-        // Parse watch operation
         WatchOperation op;
         if (cmd.value == "SET") {
             op = WatchOperation::SET;
@@ -201,10 +190,9 @@ std::string Server::processCommand(const std::string& command, int clientSocket)
     else if (cmd.operation == "SET") {
         auto existingValue = store.find(cmd.key);
         if (existingValue.has_value()) {
-            return "ERROR Key already exists\n";  // Add this error check
+            return "ERROR Key already exists\n"; 
         }
         store.insert(cmd.key, cmd.value);
-        // Notify watchers asynchronously - O(1) lookup, O(n) queue
         watchManager.notifyEvent(cmd.key, WatchOperation::SET, cmd.value);
         return "OK\n";
     }
@@ -213,22 +201,20 @@ std::string Server::processCommand(const std::string& command, int clientSocket)
         auto existingValue = store.find(cmd.key);
         if (existingValue.has_value()) {
             store.remove(cmd.key);
-            // Notify watchers asynchronously - O(1) lookup, O(n) queue
             watchManager.notifyEvent(cmd.key, WatchOperation::DEL, "");
             return "OK\n";
         } else {
-            return "ERROR Key not found\n";  // Add this error message
+            return "ERROR Key not found\n"; 
         }
     }
     else if (cmd.operation == "EDIT") {
         auto existingValue = store.find(cmd.key);
         if (existingValue.has_value()) {
             store.edit(cmd.key, cmd.value);
-            // Notify watchers asynchronously - O(1) lookup, O(n) queue
             watchManager.notifyEvent(cmd.key, WatchOperation::EDIT, cmd.value);
             return "OK\n";
         } else {
-            return "ERROR Key not found\n";  // Add this error message
+            return "ERROR Key not found\n";  
         }
     }
     

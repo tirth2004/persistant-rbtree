@@ -1,5 +1,9 @@
-// server_epoll.cpp - Updated server with epoll-based multiplexing and nc-friendly support
-
+/* All client socket connections are handled by the same server thread, which prevents
+ the overhead associated with creating and managing many threads. This avoids performance
+ issues like excessive context switching and also leads to lower memory usage since each thread
+ will otherwise hold its own memory stack. Combined with epoll, this allows us to make a
+ highly scalable server that can manage multiple clients. Since only one operation runs
+ at a time in the single thread, there are also no concurrency issues with read/write operations.*/
 #include "../include/server.hpp"
 #include <iostream>
 #include <sstream>
@@ -14,6 +18,7 @@
 
 namespace kvdb {
 
+// Define server class and its methods
 Server::Server(const std::string& host, int port)
     : host(host), port(port), running(false) {
     watchManager.start();
@@ -77,6 +82,8 @@ void Server::serverLoop() {
         return;
     }
 
+    /* Set file descriptor to non-blocking mode so one socket does not hold/block the server.
+     Prevents one socket from holding up the server in case of any I/O or network failure.*/
     auto makeNonBlocking = [](int fd) {
         int flags = fcntl(fd, F_GETFL, 0);
         fcntl(fd, F_SETFL, flags | O_NONBLOCK);
@@ -91,17 +98,20 @@ void Server::serverLoop() {
 
     std::unordered_map<int, std::string> partialBuffer;
 
-    std::cout << "Server listening with epoll on " << host << ":" << port << std::endl;
+    std::cout << "Server listening on " << host << ":" << port << std::endl;
 
+    // Upto 64 clients are handled in one call to epoll_wait. Rest will be handled in the next call.
     const int MAX_EVENTS = 64;
     struct epoll_event events[MAX_EVENTS];
 
+    // Start event loop
     while (running) {
         int n = epoll_wait(epollFd, events, MAX_EVENTS, 1000);
 
         for (int i = 0; i < n; i++) {
             int fd = events[i].data.fd;
-
+            
+            // New client is trying to connect
             if (fd == serverSocket) {
                 struct sockaddr_in clientAddr;
                 socklen_t clientLen = sizeof(clientAddr);
@@ -113,10 +123,11 @@ void Server::serverLoop() {
                     clientEvent.data.fd = clientSocket;
                     epoll_ctl(epollFd, EPOLL_CTL_ADD, clientSocket, &clientEvent);
 
-                    // Log the thread ID for the new client connection
                     std::cerr << "New client connection accepted. Thread ID: " 
                               << std::this_thread::get_id() << std::endl;
                 }
+
+            // Existing client is sending new data
             } else {
                 char buffer[1024];
                 while (true) {
@@ -148,13 +159,12 @@ void Server::serverLoop() {
     close(epollFd);
 }
 
-
+// Read command and call appropriate functions.
 std::string Server::processCommand(const std::string& command, int clientSocket) {
     Command cmd = parseCommand(command);
     cmd.clientSocket = clientSocket;
     
     if (cmd.operation == "WATCH") {
-        // Parse watch operation
         WatchOperation op;
         if (cmd.value == "SET") {
             op = WatchOperation::SET;
@@ -168,17 +178,14 @@ std::string Server::processCommand(const std::string& command, int clientSocket)
             return "ERROR Invalid watch operation. Use SET, DEL, EDIT, or ALL\n";
         }
         
-        // Add the watch - O(1) operation
         watchManager.addWatch(clientSocket, cmd.key, op);
         return "OK Watching " + cmd.key + " for " + cmd.value + " operations\n";
     } 
     else if (cmd.operation == "UNWATCH") {
         if (cmd.key.empty()) {
-            // Remove all watches for this client - O(n) operation
             watchManager.removeAllWatches(clientSocket);
             return "OK Removed all watches\n";
         } else {
-            // Parse watch operation
             WatchOperation op;
             if (cmd.value == "SET") {
                 op = WatchOperation::SET;
@@ -192,7 +199,6 @@ std::string Server::processCommand(const std::string& command, int clientSocket)
                 return "ERROR Invalid watch operation\n";
             }
             
-            // Remove specific watch - O(1) operation
             watchManager.removeWatch(clientSocket, cmd.key, op);
             return "OK Removed watch for " + cmd.key + "\n";
         }
@@ -208,10 +214,9 @@ std::string Server::processCommand(const std::string& command, int clientSocket)
     else if (cmd.operation == "SET") {
         auto existingValue = store.find(cmd.key);
         if (existingValue.has_value()) {
-            return "ERROR Key already exists\n";  // Add this error check
+            return "ERROR Key already exists\n";  
         }
         store.insert(cmd.key, cmd.value);
-        // Notify watchers asynchronously - O(1) lookup, O(n) queue
         watchManager.notifyEvent(cmd.key, WatchOperation::SET, cmd.value);
         return "OK\n";
     }
@@ -220,22 +225,20 @@ std::string Server::processCommand(const std::string& command, int clientSocket)
         auto existingValue = store.find(cmd.key);
         if (existingValue.has_value()) {
             store.remove(cmd.key);
-            // Notify watchers asynchronously - O(1) lookup, O(n) queue
             watchManager.notifyEvent(cmd.key, WatchOperation::DEL, "");
             return "OK\n";
         } else {
-            return "ERROR Key not found\n";  // Add this error message
+            return "ERROR Key not found\n";  
         }
     }
     else if (cmd.operation == "EDIT") {
         auto existingValue = store.find(cmd.key);
         if (existingValue.has_value()) {
             store.edit(cmd.key, cmd.value);
-            // Notify watchers asynchronously - O(1) lookup, O(n) queue
             watchManager.notifyEvent(cmd.key, WatchOperation::EDIT, cmd.value);
             return "OK\n";
         } else {
-            return "ERROR Key not found\n";  // Add this error message
+            return "ERROR Key not found\n";  
         }
     }
     
@@ -301,6 +304,7 @@ std::string Server::processCommand(const std::string& command, int clientSocket)
     }
 }
 
+// Fill command struct according to command entered.
 Server::Command Server::parseCommand(const std::string& commandStr) {
     Command cmd;
     cmd.version = -1;
@@ -348,4 +352,4 @@ Server::Command Server::parseCommand(const std::string& commandStr) {
     return cmd;
 }
 
-} // namespace kvdb
+}
