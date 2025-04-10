@@ -146,7 +146,7 @@ void Server::serverLoop() {
                         break;
                     } else {
                         buffer[bytesRead] = '\0';
-                        std::string command(buffer); // take the whole chunk
+                        std::string command(buffer); 
                         std::string response = processCommand(command, fd);
                         send(fd, response.c_str(), response.length(), 0);
                     }
