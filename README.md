@@ -220,3 +220,11 @@ OK Watching user1 for ALL operations
 OK (In original client)
 [NOTIFICATION] EDIT user1 Alice (In new client)
 ```
+
+## Demo video
+
+https://drive.google.com/file/d/1dNWwRYABiY5MnjjYh6aiFdhYuJ-u_S7Y/view?usp=sharing
+
+## Presentation of main ideas
+
+https://www.canva.com/design/DAGkPQOYifY/EiKqCG-P1AzF7v_cGlKrOQ/edit?utm_content=DAGkPQOYifY&utm_campaign=designshare&utm_medium=link2&utm_source=sharebutton
