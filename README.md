@@ -192,12 +192,20 @@ Version Control:
 
 - `SNAPSHOT`: Create a new version snapshot
 - `VGET <version> <key>`: Get value from a specific version
+- `CHANGE <version>` : revert back to specified version
 
 Watch/Notify:
 
 - `WATCH <key> <operation>`: Watch a key for specific operations (SET/DEL/EDIT/ALL)
 - `UNWATCH <key> <operation>`: Stop watching a key
 - `UNWATCH`: Stop all watches
+
+Store/Load:
+
+- `STORE <file name>` : Store the current DB with all its SNAPSHOTS to the specified file
+- `VSTORE <file name>` : Store the current DB only without SNAPSHOTS to the specified file
+- `LOAD <file name>` : Load the DB with it's SNAPSHOTS from the specified file
+- `VLOAD <file name>` : Load the DB only from the specified file.
 
 Other:
 
