@@ -98,6 +98,7 @@ struct Treap{
 
     optional<Value> find(int T, const Key &key){
         if(!T)  return nullopt;
+        // cerr << T << '\n';
         if(nodes<Key, Value>[T].key == key)
             return values<Value>[nodes<Key, Value>[T].vID];
         if(nodes<Key, Value>[T].key > key){
@@ -173,31 +174,36 @@ struct Treap{
         int left = save(os, nodes<Key, Value>[T].p.first, num);
         int right = save(os, nodes<Key, Value>[T].p.second, num);
         os << num << " " << nodes<Key, Value>[T].key << " " << nodes<Key, Value>[T].y << " " << left << " " << right << " " << values<Value>[nodes<Key, Value>[T].vID] << "\n";
-        num++;
-        return num;
+        return num++;
     }
 
     void save(ostream &os){
         os << size(root) << "\n";
-        int sz = 0;
-        save(os, root, sz);
+        int sz = 1;
+        int ROOT = save(os, root, sz);
+        os << ROOT << '\n';
     }
 
     void load(istream &is){
         nodes<Key, Value>.clear();
         values<Value>.clear();
         versions<Key, Value>.clear();
+        nodes<Key, Value>.add(Node<Key, Value>());
         int n {};
         is >> n;
         while(n--){
             Node<Key, Value>node;
             is >> node.vID;
+            node.vID -= 1;
             is >> node.key >> node.y >> node.p.first >> node.p.second;
             Value v;
             is >> v;
             nodes<Key, Value>.add(node);
             values<Value>.add(v);
         }
+        int ROOT {};
+        is >> ROOT;
+        this->root = ROOT;
     }
 
     // save function will do inorder traversal
@@ -220,9 +226,10 @@ Treap<Key, Value> rollback(int i){
 }
 
 template<typename Key, typename Value>
-void save(std::ostream& os) {
-    os << nodes<Key, Value>.size() << '\n';
-    for(int i=0;i<nodes<Key, Value>.size();++i) {
+void save(std::ostream& os, int root) {
+    os << root << '\n';
+    os << nodes<Key, Value>.size() - 1 << '\n';
+    for(int i=1;i<nodes<Key, Value>.size();++i) {
         os << nodes<Key, Value>[i] << '\n';
     }
 
@@ -238,11 +245,14 @@ void save(std::ostream& os) {
 }
 
 template<typename Key, typename Value>
-void load(std::istream& is) {
+int load(std::istream& is) {
     nodes<Key, Value>.clear();
     values<Value>.clear();
     versions<Key, Value>.clear();
 
+    nodes<Key, Value>.add(Node<Key, Value>());
+    int root {};
+    is >> root;
     int n {};
     is >> n;
     // is.ignore();
@@ -263,10 +273,11 @@ void load(std::istream& is) {
 
     is >> n;
     while(n--){
-        int root;
-        is >> root;
-        versions<Key, Value>.push_back(Treap<Key, Value>(root));
+        int ROOT;
+        is >> ROOT;
+        versions<Key, Value>.push_back(Treap<Key, Value>(ROOT));
     }
+    return root;
 }
 
 #endif // PERSISTENT_TREAP_HPP
