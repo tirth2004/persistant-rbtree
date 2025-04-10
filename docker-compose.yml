@@ -20,7 +20,7 @@ services:
       - ./src:/app/src
       - ./include:/app/include
       - ./CMakeLists.txt:/app/CMakeLists.txt
-    command: ./kvdb_client 172.19.0.2 8080
+    command: ./kvdb_client server 8080  # Replace with your local ip
     depends_on:
       - server
     networks:
