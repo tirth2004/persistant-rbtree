@@ -147,18 +147,6 @@ Example:
 
 ## Using the Client
 
-### Using Docker
-
-To start the client in Docker:
-
-```
-# First build the images (if not already built)
-docker-compose build
-
-# Then start the client
-docker-compose up client
-```
-
 ### Running Locally
 
 To connect to the server with default settings (localhost:8080):
