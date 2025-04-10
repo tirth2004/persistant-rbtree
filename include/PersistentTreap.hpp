@@ -1,18 +1,36 @@
 #ifndef PERSISTENT_TREAP_HPP
 #define PERSISTENT_TREAP_HPP
 
+// A persistent treap can perform insert and look-up very quickly with expected time of O(log(number of nodes))
+// The basic idea is whenever a new change or delete is performed on the structure only O(height of the tree) nodes change
+// Since the expected height of tree is log(number of nodes) a small number of nodes change.
+
+//                              IDEAS TO TACKLE CHALLENGES
+
+// for snapshot storing the DB to disk is very inefficient and loading it from disk while performing operations for previous versions is also very slow
+        // solution : use persistent treap which has very fast acess in memory (O(log(size of treap)))
+
+// each node change requires value copy overhead which can be large
+        // solution : store values in a serparate vector which can be pointed to by the node. Hence we only need to store index of values.
+
+// storing on disk is not easy with pointers (loading will not be feasible)
+        // solution : store everything in vectors and then access by index (the index basically acts like a pointer)
+
+// we are considering keys as string since all operations like get and set require key comparision, this process will be slow for large strings
+        // solution : has strings to integers, only compare strings in case of collisions
+
 #include <iostream>
 #include <optional>
 #include <utility>
 #include <random>
 #include <chrono>
 #include <fstream>
-#include "Values.hpp"
-#include "Nodes.hpp"
-#include <string>
-#include <type_traits>
+#include "Values.hpp"   // values class that stores all values of pointed by keys (nodes)
+#include "Nodes.hpp"    // nodes class that a vector to store all nodes of treap
+#include "hash.hpp"     // Fowler-Noll-Vo hash function
 
 using namespace std;
+
 std :: mt19937 static rng(std :: chrono::steady_clock::now().time_since_epoch().count());
 template<typename T>
 std::ostream& operator<<(std::ostream& os, const std::optional<T>& opt) {
@@ -24,47 +42,6 @@ std::ostream& operator<<(std::ostream& os, const std::optional<T>& opt) {
     return os;
 }
 
-// 64-bit FNV-1a constants
-constexpr uint64_t FNV_OFFSET_BASIS = 14695981039346656037ULL;
-constexpr uint64_t FNV_PRIME = 1099511628211ULL;
-
-struct FNV1aHasher {
-    template<typename Key>
-    uint64_t operator()(const Key& key) const {
-        std::string str = to_string_flex(key);
-        return fnv1a(str);
-    }
-
-private:
-    uint64_t fnv1a(const std::string& str) const {
-        uint64_t hash = FNV_OFFSET_BASIS;
-        for (char c : str) {
-            hash ^= static_cast<uint64_t>(c);
-            hash *= FNV_PRIME;
-        }
-        return hash;
-    }
-
-    // Helpers to convert key to string
-    template<typename T>
-    std::enable_if_t<std::is_arithmetic_v<T>, std::string>
-    to_string_flex(const T& val) const {
-        return std::to_string(val);
-    }
-
-    std::string to_string_flex(const std::string& val) const {
-        return val;
-    }
-
-    std::string to_string_flex(const char* val) const {
-        return std::string(val);
-    }
-
-    std::string to_string_flex(char c) const {
-        return std::string(1, c);
-    }
-};
-
 static FNV1aHasher hasher;
 
 template<typename Key, typename Value>
@@ -73,6 +50,7 @@ Nodes<Key, Value> nodes;
 template<typename Value>
 Values<Value> values;
 
+// node structure to store keys and pointers to values
 template<typename Key, typename Value>
 struct Node{
     Key key;
@@ -95,6 +73,7 @@ struct Node{
     }
 };
 
+// standard treap merge function
 template<typename Key, typename Value>
 int merge(int T1, int T2){
     if(!T2) return T1;
@@ -113,6 +92,7 @@ int merge(int T1, int T2){
     }
 }
 
+// treap split function
 template<typename Key, typename Value>
 pair<int, int> split(int T, const Key &k, const uint64_t &hk){
     if(!T) return{0, 0};
@@ -133,9 +113,11 @@ pair<int, int> split(int T, const Key &k, const uint64_t &hk){
 template<typename Key, typename Value>
 struct Treap;
 
+// versions to store snapshots
 template<typename Key, typename Value>
 vector<Treap<Key, Value>>versions;
 
+// this treap class is like a wrapper around our node which gives get, set, find functionality.
 template<typename Key, typename Value>
 struct Treap{
     int root;
@@ -152,6 +134,7 @@ struct Treap{
         return find(nodes<Key, Value>[T].p.second, key, hkey);
     }
 
+    // used when deleting to get the previous key
     optional<Key> find_lessThan(int T, const Key &key, const uint64_t &hkey){
         if(!T)  return nullopt;
         if(nodes<Key, Value>[T].hkey < hkey || (nodes<Key, Value>[T].hkey == hkey && nodes<Key, Value>[T].key < key)){
@@ -176,7 +159,8 @@ struct Treap{
             cerr << "Value already present !\n";
             return T;
         }
-        auto Split = split<Key, Value>(T, key, hkey);        int id = nodes<Key, Value>.add(key, value);
+        auto Split = split<Key, Value>(T, key, hkey);        
+        int id = nodes<Key, Value>.add(key, value);
         return merge<Key, Value>(Split.first, merge<Key, Value>(id, Split.second)); 
     }
 
@@ -330,4 +314,4 @@ int load(std::istream& is) {
     return root;
 }
 
-#endif // PERSISTENT_TREAP_HPP
+#endif

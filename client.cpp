@@ -41,7 +41,7 @@ void receiveMessages(int clientSocket) {
 }
 
 int main(int argc, char* argv[]) {
-    // Default host and port
+    // Default host and port of server
     std::string host = "127.0.0.1";
     int port = 8080;
 
@@ -53,7 +53,7 @@ int main(int argc, char* argv[]) {
         port = std::stoi(argv[2]);
     }
 
-    // Create socket
+    // Create socket of client
     int clientSocket = socket(AF_INET, SOCK_STREAM, 0);
     if (clientSocket < 0) {
         std::cerr << "Error creating socket" << std::endl;
