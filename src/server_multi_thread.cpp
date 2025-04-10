@@ -250,6 +250,40 @@ std::string Server::processCommand(const std::string& command, int clientSocket)
             return "ERROR Invalid version\n";
         }
     }
+    else if(cmd.operation == "STORE")
+    {
+        ofstream os("../save/"+cmd.value);
+        save<string, string>(os, store.root);
+        os.close();
+        return "DATABASE and SNAPSHOTS saved to " + cmd.value + "\n";
+    }
+    else if(cmd.operation == "VSTORE"){
+        ofstream os("../save/"+cmd.value);
+        store.save(os);
+        os.close();
+        return "DATABASE saved to " + cmd.value + "\n";
+    }
+    else if (cmd.operation == "LOAD")
+    {
+        ifstream is("../save/"+cmd.value);
+        if(!is.is_open()){
+            return "ERROR in opening " + cmd.value + "\n";
+        }
+        int root = load<string, string>(is);
+        store = Treap<string, string>(root);
+        is.close();
+        return "DATABASE and SNAPSHOTS Loaded\n";
+    }
+    else if (cmd.operation == "VLOAD")
+    {
+        ifstream is("../save/"+cmd.value);
+        if(!is.is_open()){
+            return "ERROR in opening " + cmd.value;
+        }
+        store.load(is);
+        is.close();
+        return "DATABASE Loaded\n";
+    }
     else {
         return "ERROR Unknown command\n";
     }
@@ -274,7 +308,15 @@ Server::Command Server::parseCommand(const std::string& commandStr) {
         if (std::getline(iss, token, ' ')) {
             cmd.key = token;
         }
-    } else {
+    } 
+    else if(cmd.operation == "STORE" || cmd.operation == "VSTORE" || cmd.operation == "LOAD" || cmd.operation == "VLOAD")
+    {
+        if(std :: getline(iss, token, ' '))
+        {
+            cmd.value = token;
+        }
+    }
+    else {
         if (std::getline(iss, token, ' ')) {
             cmd.key = token;
         }

@@ -7,18 +7,19 @@ template<typename Value>
 class Values{
 private:
     std :: vector<Value> values;
-    int sz;
 public:
-    Values() : sz(0) {}
-    Values(const std :: vector<Value>& initialValues) : values(initialValues), sz(initialValues.size()) {}
 
     int add(const Value value){
         values.push_back(value);
-        return sz++;
+        return (int)values.size() - 1;
     }
 
     int size() const{
-        return sz;
+        return values.size();
+    }
+
+    void clear(){
+        values.clear();
     }
 
     Value& operator[](int index) {

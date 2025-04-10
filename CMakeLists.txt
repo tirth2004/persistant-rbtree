@@ -9,7 +9,7 @@ include_directories(${PROJECT_SOURCE_DIR}/include)
 
 # Add source files for server
 set(SERVER_SOURCES
-    src/servercorrect.cpp
+    src/server_single_thread.cpp
     main.cpp
     src/watch_manager.cpp
 )
