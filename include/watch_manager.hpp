@@ -13,7 +13,7 @@
 
 namespace kvdb {
 
-// Define watch operation types
+// watch operation types
 enum class WatchOperation {
     SET,
     DEL,
@@ -21,14 +21,14 @@ enum class WatchOperation {
     ALL
 };
 
-// Define a hash function for WatchOperation
+// hash function for WatchOperation
 struct WatchOperationHash {
     std::size_t operator()(const WatchOperation& op) const {
         return static_cast<std::size_t>(op);
     }
 };
 
-// Define a key for our hash map (key + operation)
+// key for our hash map (key + operation)
 struct WatchKey {
     std::string key;
     WatchOperation operation;

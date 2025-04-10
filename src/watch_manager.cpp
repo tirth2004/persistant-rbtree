@@ -171,4 +171,4 @@ void WatchManager::notificationLoop() {
     }
 }
 
-} // namespace kvdb
+}
